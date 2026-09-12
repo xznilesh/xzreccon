@@ -1,0 +1,32 @@
+name: Reconstruct XZReception Source
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct source zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat bundle/part00.txt bundle/part01.txt bundle/part02.txt bundle/part03.txt bundle/part04.txt bundle/part05.txt bundle/part06.txt bundle/part07.txt bundle/part08.txt bundle/part09.txt bundle/part10a.txt bundle/part10b.txt bundle/part10c.txt bundle/part10d.txt bundle/part11.txt bundle/part12.txt bundle/part13.txt bundle/part14.txt > source.b64
+          test "$(wc -c < source.b64)" -eq 99072
+          base64 -d source.b64 > XZReception_SharkTank_P0_P2.zip
+          echo "57026b44d555ec91785c17fcd0b34b2c62f59ad837728b8ada682ad478fc36bb  XZReception_SharkTank_P0_P2.zip" | sha256sum -c -
+          mkdir recovered
+          unzip -q XZReception_SharkTank_P0_P2.zip -d recovered
+      - name: Upload recovered source
+        uses: actions/upload-artifact@v4
+        with:
+          name: xzreception-recovered-source
+          path: recovered/
+          include-hidden-files: true
+          retention-days: 7
