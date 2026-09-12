@@ -1,0 +1,64 @@
+name: XZReception Enterprise Self-Serve Build
+
+on:
+  push:
+    paths:
+      - 'patches/enterprise-selfserve-*.b64'
+      - '.github/workflows/enterprise-selfserve-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct baseline source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat bundle/part00.txt bundle/part01.txt bundle/part02.txt bundle/part03.txt bundle/part04.txt bundle/part05.txt bundle/part06.txt bundle/part07.txt bundle/part08.txt bundle/part09.txt bundle/part10a.txt bundle/part10b.txt bundle/part10c.txt bundle/part10d.txt bundle/part11.txt bundle/part12.txt bundle/part13.txt bundle/part14.txt > source.b64
+          test "$(wc -c < source.b64)" -eq 99072
+          base64 -d source.b64 > source.zip
+          echo "57026b44d555ec91785c17fcd0b34b2c62f59ad837728b8ada682ad478fc36bb  source.zip" | sha256sum -c -
+          mkdir recovered
+          unzip -q source.zip -d recovered
+      - name: Apply enterprise self-serve patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat patches/enterprise-selfserve-00.b64 patches/enterprise-selfserve-01.b64 patches/enterprise-selfserve-02.b64 | base64 -d | gunzip > enterprise.patch
+          cd recovered/xzreception-build
+          patch -p5 < ../../enterprise.patch
+          rm -f tsconfig.tsbuildinfo
+      - name: Install dependencies
+        working-directory: recovered/xzreception-build
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        working-directory: recovered/xzreception-build
+        run: npm run typecheck
+      - name: Tests
+        working-directory: recovered/xzreception-build
+        run: npm test
+      - name: Production build
+        working-directory: recovered/xzreception-build
+        run: npm run build
+      - name: Package source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf recovered/xzreception-build/node_modules recovered/xzreception-build/.next recovered/xzreception-build/tsconfig.tsbuildinfo
+          cd recovered
+          zip -qr ../XZReception_Enterprise_SelfServe.zip xzreception-build
+          cd ..
+          sha256sum XZReception_Enterprise_SelfServe.zip > XZReception_Enterprise_SelfServe.zip.sha256
+      - name: Upload verified source
+        uses: actions/upload-artifact@v4
+        with:
+          name: xzreception-enterprise-selfserve-source
+          path: |
+            XZReception_Enterprise_SelfServe.zip
+            XZReception_Enterprise_SelfServe.zip.sha256
+          retention-days: 14
